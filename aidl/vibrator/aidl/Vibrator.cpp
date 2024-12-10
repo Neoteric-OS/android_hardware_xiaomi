@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Changes from Qualcomm Innovation Center are provided under the following license:
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
@@ -76,6 +76,7 @@ namespace vibrator {
 #define MSM_CPU_CAPE            530
 #define APQ_CPU_CAPE            531
 #define MSM_CPU_KALAMA          519
+#define MSM_CPU_PINEAPPLE       557
 
 #define test_bit(bit, array)    ((array)[(bit)/8] & (1<<((bit)%8)))
 
@@ -174,6 +175,7 @@ InputFFDevice::InputFFDevice()
             case MSM_CPU_TARO:
             case MSM_CPU_YUPIK:
             case MSM_CPU_KALAMA:
+            case MSM_CPU_PINEAPPLE:
                 mSupportExternalControl = true;
                 break;
             default:
@@ -216,10 +218,12 @@ int InputFFDevice::play(int effectId, uint32_t timeoutMs, long *playLengthMs) {
     const struct effect_stream *stream;
 #endif
 
+    mtx.lock();
     /* For QMAA compliance, return OK even if vibrator device doesn't exist */
     if (mVibraFd == INVALID_VALUE) {
         if (playLengthMs != NULL)
             *playLengthMs = 0;
+            mtx.unlock();
             return 0;
     }
 
@@ -293,10 +297,12 @@ int InputFFDevice::play(int effectId, uint32_t timeoutMs, long *playLengthMs) {
         }
         mCurrAppId = INVALID_VALUE;
     }
+    mtx.unlock();
     return 0;
 
 errout:
     mCurrAppId = INVALID_VALUE;
+    mtx.unlock();
     return ret;
 }
 
@@ -828,8 +834,32 @@ void Vibrator::composePlayThread(Vibrator *vibrator,
                 ALOGE("Failed to read stop status from pipe(playLengthMs), status = %d", status);
                 break;
             }
-            if (status == STOP_COMPOSE)
+            if (status == STOP_COMPOSE) {
+
+                /*
+                 * There is a corner case that the off() command could be executed in
+                 * main thread before the primitive play is triggered in the child thread,
+                 * such as, when playing a very short primitive effect while the system is
+                 * pretty busy (one example is enabling all kernel console log after executed
+                 * "echo Y > /sys/module/printk/parameters/ignore_loglevel"), the child thread
+                 * may not be able to schedule out for running before the main thread times out
+                 * on the primitive duration and sent the off() command, there won't be any
+                 * off() command coming again to stop the primitive effect after it's triggered.
+                 *
+                 * However, the primitive could be played out and stopped automatically but the
+                 * haptics driver does expect an explicit off() command to restore HW/SW logic
+                 * after that, so call it here. It would result a redundant off() command in
+                 * normal case but it won't do any harm because it would be ignored and not sent
+                 * to haptics driver because of an invalid mCurrAppId. It would also result in the
+                 * primitive effect to stop immediately right after it's triggered in such
+                 * corner case. But considering the main thread has stopped it before off() is
+                 * called here, take this as a limitation and it is expected not playing the
+                 * vibration out.
+                 */
+
+                vibrator->ff.off();
                 break;
+            }
         }
     }
 
@@ -884,15 +914,17 @@ ndk::ScopedAStatus Vibrator::compose(const std::vector<CompositeEffect>& composi
             ALOGE("wait for last composePlayThread done timeout");
             return ndk::ScopedAStatus::fromExceptionCode(EX_SERVICE_SPECIFIC);
         }
+    }
 
-        /* Read the pipe again to remove any stale data before triggering a new play */
-        nfd = epoll_wait(epollfd, &events, 1, 0);
-        if (nfd == -1 && (errno != EINTR)) {
-            ALOGE("Failed to wait sleep playLengthMs, error=%d", errno);
-            return ndk::ScopedAStatus::fromExceptionCode(EX_SERVICE_SPECIFIC);
-        }
-        if (nfd > 0)
-            read(pipefd[0], &status, sizeof(int));
+    /* Read the pipe again to remove any stale data before triggering a new play */
+    nfd = epoll_wait(epollfd, &events, 1, 0);
+    if (nfd == -1 && (errno != EINTR)) {
+        ALOGE("Failed to wait sleep playLengthMs, error=%d", errno);
+        return ndk::ScopedAStatus::fromExceptionCode(EX_SERVICE_SPECIFIC);
+    }
+    if (nfd > 0) {
+        ALOGD("A stale event is cached in the pipe, remove it");
+        read(pipefd[0], &status, sizeof(int));
     }
 
     inComposition = true;

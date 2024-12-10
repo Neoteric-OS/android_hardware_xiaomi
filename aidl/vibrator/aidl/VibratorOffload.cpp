@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -97,7 +96,7 @@ void PatternOffload::SSREventListener(void)
     }
 
     while ((n = uevent_kernel_multicast_recv(device_fd, msg, UEVENT_MSG_LEN)) > 0) {
-         if (n <= 0 || n > UEVENT_MSG_LEN) {
+         if (n <= 0 || n >= UEVENT_MSG_LEN) {
             ALOGE("Message length %d is not correct\n", n);
             continue;
          }
@@ -150,17 +149,17 @@ void PatternOffload::SendPatterns()
         return;
 
     rc = get_pattern_data(&data, &len);
-    if (rc < 0)
+    if (rc < 0 || !data)
         return;
 
     /* Send pattern data */
     rc = sendData(data, len);
     if (rc < 0)
-        ALOGE("pattern offloaded failed\n");
-    else
-        ALOGI("Patterns offloaded successfully\n");
+        return;
 
     free_pattern_mem(data);
+
+    ALOGI("Patterns offloaded successfully\n");
 }
 
 int PatternOffload::sendData(uint8_t *data, int len)
