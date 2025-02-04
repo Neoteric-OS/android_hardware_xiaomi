@@ -129,6 +129,7 @@ class SysfsPollingOneShotSensor : public OneShotSensor {
 
 #ifdef USES_UDFPS_SENSOR
 static const char* udfpsStatePaths[] = {
+  "/sys/devices/platform/soc/a8c000.spi/spi_master/spi1/spi1.0/fod_state",
   "/sys/devices/virtual/touch/touch_dev/fod_press_status",
   "/sys/touchpanel/fp_state",
   NULL
