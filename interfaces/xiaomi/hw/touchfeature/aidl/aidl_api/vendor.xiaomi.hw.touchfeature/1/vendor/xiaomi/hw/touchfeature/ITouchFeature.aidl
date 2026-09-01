@@ -9,7 +9,6 @@ interface ITouchFeature {
   int getTouchModeMaxValue(int touchId, int mode);
   int getTouchModeMinValue(int touchId, int mode);
   boolean resetTouchMode(int touchId, int mode);
-  boolean setEdgeMode(int touchId, int mode, in int[] value, int length);
+  int setEdgeMode(int touchId, int mode, int length, in int[] value);
   void setTouchMode(int touchId, int mode, int value);
-  void setModeLongValue(int touchId, int mode, int length, in int[] value);
 }
