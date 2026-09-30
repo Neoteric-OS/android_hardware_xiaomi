@@ -17,7 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import co.aospa.dolby.xiaomi.R
 
 @Composable
@@ -30,7 +29,7 @@ fun BandGainSliderLabels() {
             stringResource(id = R.string.dolby_geq_slider_label_gain)
         )
         Column(
-            modifier = Modifier.height(200.dp),
+            modifier = Modifier.height(SLIDER_HEIGHT),
             horizontalAlignment = Alignment.End
         ) {
             LabelText(
@@ -65,7 +64,7 @@ fun LabelText(
     Text(
         text = text,
         modifier = modifier,
-        color = MaterialTheme.colorScheme.secondary,
-        fontSize = 12.sp
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }

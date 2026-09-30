@@ -1,24 +1,46 @@
 /*
  * Copyright (C) 2023-24 Paranoid Android
- *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 package co.aospa.dolby.xiaomi
 
+import android.content.Intent
 import android.os.Bundle
-import co.aospa.dolby.xiaomi.preference.DolbySettingsFragment
-import com.android.settingslib.collapsingtoolbar.CollapsingToolbarBaseActivity
-import com.android.settingslib.collapsingtoolbar.R
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import androidx.compose.ui.res.stringResource
+import co.aospa.dolby.xiaomi.geq.EqualizerActivity
+import co.aospa.dolby.xiaomi.ui.DolbyScreen
+import co.aospa.dolby.xiaomi.ui.DolbyViewModel
+import com.android.settingslib.spa.framework.theme.SettingsTheme
+import com.android.settingslib.spa.widget.scaffold.RegularScaffold
 
-private const val TAG = "DolbyActivity"
+class DolbyActivity : ComponentActivity() {
 
-class DolbyActivity : CollapsingToolbarBaseActivity() {
+    private val viewModel: DolbyViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        fragmentManager.beginTransaction()
-                .replace(R.id.content_frame, DolbySettingsFragment(), TAG)
-                .commit()
+        enableEdgeToEdge()
+        setContent {
+            SettingsTheme {
+                RegularScaffold(title = stringResource(R.string.dolby_title)) {
+                    DolbyScreen(
+                        viewModel = viewModel,
+                        onOpenEqualizer = {
+                            startActivity(Intent(this, EqualizerActivity::class.java))
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.refresh()
     }
 }
